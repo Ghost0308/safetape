@@ -55,7 +55,9 @@ jobs:
           version: "0.13.10"
           python-version: ${{ matrix.python }}
       - run: uv sync --locked
-      - run: uv run pytest --cov
+      # pytest loads safetape's plugin before pytest-cov starts, so measure from outside.
+      - run: uv run coverage run -m pytest
+      - run: uv run coverage report
 
   audit:
     runs-on: ubuntu-latest

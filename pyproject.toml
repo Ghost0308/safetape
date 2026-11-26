@@ -30,6 +30,9 @@ classifiers = [
 # 8.2.1 is the first vcrpy that loads cassettes with a safe YAML loader (GHSA-rpj2-4hq8-938g)
 dependencies = ["vcrpy>=8.2.1"]
 
+[project.entry-points.pytest11]
+safetape = "safetape.pytest_plugin"
+
 [project.urls]
 Homepage = "https://github.com/Ghost0308/safetape"
 Issues = "https://github.com/Ghost0308/safetape/issues"
