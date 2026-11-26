@@ -52,7 +52,9 @@ with my_vcr.use_cassette("capital.json"):
 
 safetape drops credential headers like `authorization`, `x-api-key`, `x-goog-api-key`, `api-key`, `openai-organization`, `cookie` and `set-cookie`, and credential query parameters like Gemini's `?key=` and the signature on AWS presigned URLs. In JSON and form bodies it replaces fields like `access_token`, `refresh_token` and `client_secret` with `REDACTED`, which covers OAuth token exchanges such as the ones Vertex AI does behind your back.
 
-Then it scans everything that's left, compressed bodies included, for anything that looks like a key or token. If it finds something, nothing is written and the test fails with the location. The error shows the rule and a masked preview, never the value:
+Then it scans everything that's left, compressed bodies included, for anything that looks like a key or token. Some providers (Mistral, Cohere, Azure OpenAI) use keys with no recognisable shape, so it also looks for exact values it already knows are secret: the credentials it just stripped, and the values of environment variables with names like `MISTRAL_API_KEY`. That's how a key pasted into a prompt or echoed back in an error still gets caught, whatever it looks like.
+
+If it finds something, nothing is written and the test fails with the location. The error shows the rule and a masked preview, never the value:
 
 ```
 safetape didn't save tests/cassettes/test_capital.json because it still has something that looks like a secret:
@@ -115,9 +117,9 @@ To turn the plugin off for a run, use `pytest -p no:safetape`.
 
 ## What it can't promise
 
-Detection is pattern based, so a key in an unusual format can still slip through. Use it as a safety net on top of secret scanning in your repo, not instead of it, and rotate anything that leaks.
+Detection is pattern based, plus exact matches for the credentials it knows about. A key in an unusual format that isn't in a header or an environment variable can still slip through, and so can a known key that was encoded or split up on its way into a body. Use it as a safety net on top of secret scanning in your repo, not instead of it, and rotate anything that leaks.
 
-pytest prints function arguments in its long tracebacks. safetape keeps its own errors out of that, but when a request has no recording, vcrpy's error and the frames inside your HTTP client can show the request's URL. If your keys travel in query strings, run CI with `--tb=short`.
+When a test fails, the error and the frames pytest prints can describe the live request before it was scrubbed. The plugin masks secrets in pytest's failure reports and captured output, and vcrpy's "can't play back this request" error is masked wherever it's shown. Other tools that print local variables, like rich tracebacks or Sentry, are outside what safetape can see.
 
 ## Security
 
