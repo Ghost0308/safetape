@@ -60,8 +60,12 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "PT", "PL"]
 
+[tool.ruff.lint.pylint]
+# Body handling dispatches on a lot of shapes, and early returns read best there.
+max-returns = 10
+
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "PLR2004"]
+"tests/**" = ["S101", "S311", "PLR2004"]
 
 [tool.mypy]
 python_version = "3.11"

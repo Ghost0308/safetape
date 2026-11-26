@@ -1,0 +1,194 @@
+{
+  "version": 1,
+  "about": "Secret detection rules for safetape. Regexes stick to syntax that Python re and JavaScript RegExp read the same way. Rules are tried in order and the first rule to claim a span wins, so specific rules go before generic ones.",
+  "allow": [
+    "redacted",
+    "xxxxxx",
+    "******",
+    "example",
+    "dummy",
+    "placeholder",
+    "your",
+    "changeme",
+    "fake"
+  ],
+  "suspicious_headers": {
+    "name_regex": "key|secret|token|auth|passw|credential|signature|session|cookie",
+    "name_exclude_regex": "ratelimit|rate-limit",
+    "min_length": 16,
+    "min_entropy": 3.5
+  },
+  "rules": [
+    {
+      "id": "openai-key",
+      "description": "OpenAI project, service account or admin key",
+      "regex": "\\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}",
+      "keywords": ["sk-proj-", "sk-svcacct-", "sk-admin-"],
+      "min_entropy": 3.0
+    },
+    {
+      "id": "openai-legacy-key",
+      "description": "OpenAI user key in the older format",
+      "regex": "\\bsk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}\\b",
+      "keywords": ["t3blbkfj"]
+    },
+    {
+      "id": "anthropic-key",
+      "description": "Anthropic API or admin key",
+      "regex": "\\bsk-ant-[a-z]{2,10}[0-9]{2}-[A-Za-z0-9_-]{32,}",
+      "keywords": ["sk-ant-"],
+      "min_entropy": 3.0
+    },
+    {
+      "id": "openrouter-key",
+      "description": "OpenRouter API key",
+      "regex": "\\bsk-or-v1-[a-f0-9]{64}\\b",
+      "keywords": ["sk-or-v1-"]
+    },
+    {
+      "id": "sk-style-key",
+      "description": "API key in the sk- style that DeepSeek, Moonshot and others use",
+      "regex": "\\bsk-[A-Za-z0-9_-]{32,}",
+      "keywords": ["sk-"],
+      "min_entropy": 3.5
+    },
+    {
+      "id": "google-api-key",
+      "description": "Google API key (Gemini, Maps and other Google APIs)",
+      "regex": "\\bAIza[0-9A-Za-z_-]{35}(?![0-9A-Za-z_-])",
+      "keywords": ["aiza"]
+    },
+    {
+      "id": "google-oauth-token",
+      "description": "Google OAuth access token (Vertex AI and other Google Cloud APIs)",
+      "regex": "\\bya29\\.[0-9A-Za-z_-]{20,}",
+      "keywords": ["ya29."]
+    },
+    {
+      "id": "groq-key",
+      "description": "Groq API key",
+      "regex": "\\bgsk_[A-Za-z0-9]{48,}",
+      "keywords": ["gsk_"]
+    },
+    {
+      "id": "xai-key",
+      "description": "xAI API key",
+      "regex": "\\bxai-[A-Za-z0-9]{70,}",
+      "keywords": ["xai-"]
+    },
+    {
+      "id": "huggingface-token",
+      "description": "Hugging Face access token",
+      "regex": "\\bhf_[A-Za-z0-9]{30,}(?![A-Za-z0-9])",
+      "keywords": ["hf_"],
+      "min_entropy": 3.0
+    },
+    {
+      "id": "perplexity-key",
+      "description": "Perplexity API key",
+      "regex": "\\bpplx-[A-Za-z0-9]{40,}",
+      "keywords": ["pplx-"]
+    },
+    {
+      "id": "replicate-token",
+      "description": "Replicate API token",
+      "regex": "\\br8_[A-Za-z0-9]{35,}",
+      "keywords": ["r8_"]
+    },
+    {
+      "id": "fireworks-key",
+      "description": "Fireworks AI API key",
+      "regex": "\\bfw_[A-Za-z0-9]{20,}",
+      "keywords": ["fw_"],
+      "min_entropy": 3.5
+    },
+    {
+      "id": "nvidia-key",
+      "description": "NVIDIA API key",
+      "regex": "\\bnvapi-[A-Za-z0-9_-]{40,}",
+      "keywords": ["nvapi-"]
+    },
+    {
+      "id": "langsmith-key",
+      "description": "LangSmith API key",
+      "regex": "\\blsv2_(?:pt|sk)_[A-Za-z0-9_]{32,}",
+      "keywords": ["lsv2_"]
+    },
+    {
+      "id": "aws-access-key-id",
+      "description": "AWS access key ID",
+      "regex": "\\b(?:AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}\\b",
+      "keywords": ["akia", "asia", "abia", "acca"],
+      "min_entropy": 3.0
+    },
+    {
+      "id": "aws-bedrock-api-key",
+      "description": "Amazon Bedrock API key",
+      "regex": "\\b(?:ABSK|bedrock-api-key-)[A-Za-z0-9+/]{40,}={0,2}",
+      "keywords": ["absk", "bedrock-api-key-"],
+      "min_entropy": 3.5
+    },
+    {
+      "id": "github-token",
+      "description": "GitHub token",
+      "regex": "\\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}",
+      "keywords": ["ghp_", "gho_", "ghu_", "ghs_", "ghr_"]
+    },
+    {
+      "id": "github-fine-grained-token",
+      "description": "GitHub fine-grained personal access token",
+      "regex": "\\bgithub_pat_[A-Za-z0-9_]{60,}",
+      "keywords": ["github_pat_"]
+    },
+    {
+      "id": "slack-token",
+      "description": "Slack token",
+      "regex": "\\bxox[abposr]-[A-Za-z0-9-]{10,}",
+      "keywords": ["xox"],
+      "min_entropy": 3.0
+    },
+    {
+      "id": "stripe-live-key",
+      "description": "Stripe live secret or restricted key",
+      "regex": "\\b(?:sk|rk)_live_[A-Za-z0-9]{20,}",
+      "keywords": ["_live_"]
+    },
+    {
+      "id": "private-key",
+      "description": "Private key block",
+      "regex": "-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----",
+      "keywords": ["private key-----"]
+    },
+    {
+      "id": "jwt",
+      "description": "JSON Web Token",
+      "regex": "\\beyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}",
+      "keywords": ["eyj"]
+    },
+    {
+      "id": "url-credentials",
+      "description": "Password inside a URL",
+      "regex": "\\b[A-Za-z][A-Za-z0-9+.-]*://[^\\s:/?#@\"'<>]+:([^\\s/?#@\"'<>]{6,})@",
+      "keywords": ["://"],
+      "secret_group": 1
+    },
+    {
+      "id": "bearer-token",
+      "description": "Bearer token",
+      "regex": "\\bbearer\\s+([A-Za-z0-9_~+/.-]{20,}=*)",
+      "flags": "i",
+      "keywords": ["bearer"],
+      "secret_group": 1,
+      "min_entropy": 3.0
+    },
+    {
+      "id": "secret-assignment",
+      "description": "High-entropy value assigned to something named like a secret",
+      "regex": "(?:(?:\\b|[_-])(?:api[_-]?key|access[_-]?key|secret[_-]?(?:access[_-]?)?key|access[_-]?token|auth[_-]?token|refresh[_-]?token|client[_-]?secret)|\\b(?:password|passwd|secret|token))\\b(?:\\\\*[\"'])?\\s*[:=]\\s*(?:\\\\*[\"'])?([A-Za-z0-9_./+=-]{16,})",
+      "flags": "i",
+      "keywords": ["key", "secret", "token", "pass"],
+      "secret_group": 1,
+      "min_entropy": 3.5
+    }
+  ]
+}
