@@ -1,0 +1,83 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "safetape"
+dynamic = ["version"]
+description = "Keep API keys out of your recorded LLM test cassettes. Works with vcrpy and pytest-recording."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+authors = [{ name = "Parth" }]
+keywords = ["vcrpy", "pytest", "llm", "testing", "cassettes", "secrets", "openai", "anthropic"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
+# 8.2.1 is the first vcrpy that loads cassettes with a safe YAML loader (GHSA-rpj2-4hq8-938g)
+dependencies = ["vcrpy>=8.2.1"]
+
+[project.urls]
+Homepage = "https://github.com/Ghost0308/safetape"
+Issues = "https://github.com/Ghost0308/safetape/issues"
+Changelog = "https://github.com/Ghost0308/safetape/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "pytest>=9",
+    "pytest-cov>=7",
+    "pytest-recording>=0.15",
+    "hypothesis>=6.170",
+    "httpx>=0.28",
+    "ruff>=0.17",
+    "mypy>=2.4",
+    "pip-audit>=2.10",
+]
+
+[tool.hatch.version]
+path = "src/safetape/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/safetape"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "PT", "PL"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "PLR2004"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+testpaths = ["tests"]
+xfail_strict = true
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+branch = true
+source = ["safetape"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
