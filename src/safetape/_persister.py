@@ -7,7 +7,7 @@ import os
 import stat
 import tempfile
 import warnings
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
@@ -19,54 +19,22 @@ from vcr.serialize import deserialize as vcr_deserialize
 from vcr.serialize import serialize as vcr_serialize
 
 from ._bodies import header_values
+from ._credentials import remember
+from ._errors import LockdownError, SafetapeError, SecretFoundError
 from ._rules import Ruleset
 from ._scan import Finding, scan_interaction, scan_text
 from ._scrub import scrub_interaction
 from ._settings import Settings
+from ._vcrpy_fixes import harden_vcrpy
 
-_ALLOW_HINT = (
-    "If it isn't really a secret, add a regex that matches it to safetape's allow list "
-    "(Settings(allow=...) or safetape_allow in your pytest config)."
-)
-
-
-class SafetapeError(Exception):
-    """Base class for errors safetape raises to stop a cassette being written."""
-
-
-class SecretFoundError(SafetapeError):
-    """A cassette wasn't saved because it still holds something that looks secret."""
-
-    def __init__(self, path: str | os.PathLike[str], findings: Sequence[Finding]) -> None:
-        self.path = os.fspath(path)
-        self.findings = tuple(findings)
-        what = (
-            "something that looks like a secret"
-            if len(self.findings) == 1
-            else f"{len(self.findings)} things that look like secrets"
-        )
-        lines = [
-            f"safetape didn't save {self.path} because it still has {what}:",
-            "",
-            *(f"  {finding}" for finding in self.findings),
-            "",
-            "Nothing was written. Strip the value before it's saved, with filter_headers, "
-            "filter_query_parameters, before_record_request or before_record_response.",
-            _ALLOW_HINT,
-        ]
-        super().__init__("\n".join(lines))
-
-
-class LockdownError(SafetapeError):
-    """Something tried to record a new cassette while lockdown is on."""
-
-    def __init__(self, path: str | os.PathLike[str]) -> None:
-        self.path = os.fspath(path)
-        super().__init__(
-            f"safetape lockdown is on, so {self.path} can't be recorded. Lockdown switches on "
-            "by itself when the CI environment variable is set. Record cassettes on your "
-            "machine and commit them, or set SAFETAPE_LOCKDOWN=0 to record here.",
-        )
+__all__ = [
+    "LockdownError",
+    "SafePersister",
+    "SafetapeError",
+    "SecretFoundError",
+    "StaleCassette",
+    "StaleCassetteWarning",
+]
 
 
 class StaleCassetteWarning(UserWarning):
@@ -105,6 +73,7 @@ class SafePersister:
         on_stale: Callable[[StaleCassette], object] | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
+        harden_vcrpy()
         self.settings = settings or Settings()
         self.extra_paths = tuple(os.fspath(p) for p in extra_paths)
         self._on_stale = on_stale
@@ -188,12 +157,19 @@ class _Guard:
     def serialize(self, data: Mapping[str, Any]) -> Any:
         __tracebackhide__ = True
         data = copy.deepcopy(dict(data))
+        interactions = data.get("interactions", ())
+        # Scrub everything first, so a key sent in one interaction's header is
+        # also caught if another interaction echoes it.
+        stripped = [scrub_interaction(interaction, self._settings) for interaction in interactions]
+        known = self._settings.known_credentials(*stripped)
+        remember(known)
+
         findings: list[Finding] = []
-        for number, interaction in enumerate(data.get("interactions", ()), start=1):
-            scrub_interaction(interaction, self._settings)
-            findings += scan_interaction(number, interaction, self._ruleset)
+        for number, interaction in enumerate(interactions, start=1):
+            findings += scan_interaction(number, interaction, self._ruleset, known)
         if data.get("metadata"):
-            findings += scan_text(repr(data["metadata"]), self._ruleset, "cassette metadata")
+            metadata = repr(data["metadata"])
+            findings += scan_text(metadata, self._ruleset, "cassette metadata", known)
         if findings:
             raise SecretFoundError(self._path, findings)
 
@@ -201,7 +177,7 @@ class _Guard:
         # The serializer can turn data into text in ways the scan above didn't see,
         # so check what is about to hit the disk as well.
         text = output.decode("utf-8", "replace") if isinstance(output, bytes) else str(output)
-        findings = scan_text(text, self._ruleset, "cassette file")
+        findings = scan_text(text, self._ruleset, "cassette file", known)
         if findings:
             raise SecretFoundError(self._path, findings)
         return output

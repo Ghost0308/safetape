@@ -9,7 +9,7 @@ from vcr.request import Request
 from safetape import Settings
 from safetape._matchers import MAX_DIFF_LINES, build_matchers, drop_path
 
-from .fakes import google_key, openai_key, refresh_token
+from .fakes import chars, google_key, openai_key, refresh_token
 
 MATCHERS = build_matchers(Settings(ignore_body_fields=["metadata.user_id", "messages.*.id"]))
 
@@ -167,3 +167,11 @@ def test_drop_path(path: str, expected: Any) -> None:
     assert drop_path(value, path.split(".")) == expected
     assert value == {"a": 1, "b": [{"c": 1, "d": 2}, {"c": 3}]}
     assert drop_path(value, []) is value
+
+
+def test_diff_masks_the_live_requests_own_credentials() -> None:
+    key = chars(32)
+    live = _json_request({"content": f"my key is {key}"}, authorization=f"Bearer {key}")
+    message = _fails("body", live, _json_request({"content": "hello"}))
+    assert key not in message
+    assert "<known-secret:" in message

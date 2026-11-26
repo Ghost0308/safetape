@@ -24,7 +24,7 @@ from safetape import (
     serializer,
 )
 
-from .fakes import openai_key
+from .fakes import chars, openai_key, refresh_token
 
 NOW = datetime(2026, 11, 26, 12, 0, tzinfo=UTC)
 
@@ -293,3 +293,56 @@ def test_lockdown_refuses_new_recordings(tmp_path: Path) -> None:
     with pytest.raises(LockdownError):
         locked.save_cassette(tmp_path / "new.json", _cassette(), serializer)
     assert path.read_bytes() == before
+
+
+def test_a_key_with_no_known_shape_is_caught_by_value(tmp_path: Path) -> None:
+    # Mistral and Azure keys look like any random string, so only the value gives them away.
+    key = chars(32)
+    cassette = _cassette(f'{{"error": "key {key} is not valid"}}', request_headers={"api-key": key})
+    with pytest.raises(SecretFoundError) as error:
+        _persister().save_cassette(tmp_path / "c.json", cassette, serializer)
+    assert [(f.rule_id, f.location) for f in error.value.findings] == [
+        ("known-secret", "interaction 1, response body"),
+    ]
+    assert key not in str(error.value)
+    assert not (tmp_path / "c.json").exists()
+
+
+def test_environment_keys_are_caught_anywhere(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    key = chars(32)
+    monkeypatch.setenv("COHERE_API_KEY", key)
+    cassette = _cassette()
+    cassette["requests"][0].body = f'{{"message": "my key is {key}"}}'
+    with pytest.raises(SecretFoundError, match="interaction 1, request body: A credential"):
+        _persister().save_cassette(tmp_path / "c.json", cassette, serializer)
+
+
+def test_a_credential_from_one_interaction_is_caught_in_another(tmp_path: Path) -> None:
+    token = refresh_token()
+    cassette = _cassette(count=2)
+    cassette["requests"][0] = Request(
+        "POST",
+        "https://oauth2.example.com/token",
+        f"grant_type=refresh_token&refresh_token={token}",
+        {"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    cassette["responses"][1]["body"]["string"] = f'{{"echo": "{token}"}}'.encode()
+    with pytest.raises(SecretFoundError) as error:
+        _persister().save_cassette(tmp_path / "c.json", cassette, serializer)
+    assert [f.location for f in error.value.findings] == ["interaction 2, response body"]
+
+
+def test_allowed_values_are_not_hunted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-fake-key-for-tests")
+    cassette = _cassette('{"note": "sk-fake-key-for-tests"}')
+    _persister().save_cassette(tmp_path / "c.json", cassette, serializer)
+
+
+def test_safe_persister_fixes_vcrpy_by_itself(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[int] = []
+    monkeypatch.setattr("safetape._persister.harden_vcrpy", lambda: calls.append(1))
+    SafePersister()
+    assert calls == [1]

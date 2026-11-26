@@ -176,3 +176,36 @@ def test_old_content_key_and_odd_shapes() -> None:
     }
     locations = [f.location for f in scan_interaction(1, interaction, RULES)]
     assert locations == ["interaction 1, response body content", "interaction 1, response items"]
+
+
+def test_known_values_are_found_whatever_they_look_like() -> None:
+    plain = chars(32)
+    (finding,) = scan_text(f"the key is {plain}.", RULES, "prompt", known={plain})
+    assert finding.rule_id == "known-secret"
+    assert plain not in str(finding)
+    assert scan_text(f"{plain} and again {plain}", RULES, "x", known={plain})[1].rule_id == (
+        "known-secret"
+    )
+
+
+def test_a_rule_match_wins_over_a_known_value() -> None:
+    key = openai_key()
+    findings = scan_text(f"Bearer {key}", RULES, "x", known={key, key[:20]})
+    assert [f.rule_id for f in findings] == ["openai-key"]
+
+
+def test_known_values_reach_every_part_of_an_interaction() -> None:
+    plain = chars(32)
+    interaction = _interaction(
+        request_headers={"x-note": [plain]},
+        request_body=plain,
+        response_body={"content": plain},
+    )
+    interaction["extra"] = plain
+    findings = scan_interaction(1, interaction, RULES, known={plain})
+    assert [f.location for f in findings] == [
+        "interaction 1, request body",
+        "interaction 1, request header x-note",
+        "interaction 1, response body content",
+        "interaction 1, extra",
+    ]

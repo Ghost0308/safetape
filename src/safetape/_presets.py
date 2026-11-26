@@ -8,6 +8,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+REDACTED = "REDACTED"
+"""What credential fields in bodies are replaced with."""
+
 
 @dataclass(frozen=True)
 class Preset:
@@ -83,6 +86,22 @@ PRESETS: dict[str, Preset] = {
         _preset("azure-storage", query_params=("sig",)),
     )
 }
+
+# Headers whose whole value is the credential. safetape remembers what it strips from
+# these and looks for the same value in the rest of the cassette. Identifiers like
+# openai-organization are stripped too, but aren't secret enough to hunt for.
+CREDENTIAL_HEADERS = frozenset(
+    {
+        "authorization",
+        "proxy-authorization",
+        "x-api-key",
+        "api-key",
+        "x-goog-api-key",
+        "x-auth-token",
+        "x-amz-security-token",
+        "cookie",
+    },
+)
 
 # Fields in JSON and form bodies whose values are credentials, compared after
 # lower-casing and dropping "_" and "-". OAuth token exchanges and cloud

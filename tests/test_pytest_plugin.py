@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from .conftest import Route, Server
-from .fakes import openai_key
+from .fakes import chars, openai_key
 
 ANSWER = {"answer": 42}
 
@@ -235,3 +235,38 @@ def test_bad_lockdown_variable_stops_the_run(
     result = pytester.runpytest()
     assert result.ret == pytest.ExitCode.USAGE_ERROR
     result.stderr.fnmatch_lines(["*SAFETAPE_LOCKDOWN should be on or off*"])
+
+
+def test_failure_reports_are_masked(
+    pytester: pytest.Pytester,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    env_key, query_key, pattern_key = chars(32), chars(24), openai_key()
+    monkeypatch.setenv("MISTRAL_API_KEY", env_key)
+    pytester.makepyfile(
+        test_report=f"""
+        import os
+
+        def call(url, api_key):
+            raise RuntimeError("the call failed")
+
+        def test_fails():
+            print("debug: using {pattern_key}")
+            call("https://api.example.com/v1?key={query_key}", os.environ["MISTRAL_API_KEY"])
+
+        def test_compares():
+            assert os.environ["MISTRAL_API_KEY"] == "something else"
+
+        def test_passes():
+            print("all good")
+        """,
+    )
+    result = pytester.runpytest("--tb=long", "-rA")
+    result.assert_outcomes(failed=2, passed=1)
+    output = result.stdout.str()
+    for secret in (env_key, query_key, pattern_key):
+        assert secret not in output
+    assert "key=REDACTED" in output
+    assert "<known-secret:" in output
+    assert "<openai-key: sk-p..." in output
+    assert "all good" in output
