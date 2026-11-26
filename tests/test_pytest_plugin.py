@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -270,3 +271,27 @@ def test_failure_reports_are_masked(
     assert "<known-secret:" in output
     assert "<openai-key: sk-p..." in output
     assert "all good" in output
+
+
+def test_loading_first_doesnt_import_vcrpy(pytester: pytest.Pytester) -> None:
+    # pytest-recording asks pytest to rewrite asserts in vcr.matchers when it loads.
+    # If safetape's plugin loads first and imports vcrpy, pytest warns about that,
+    # and suites that turn warnings into errors can't start at all.
+    pytester.makepyfile("def test_nothing(): pass")
+    result = pytester.runpytest_subprocess(
+        "-p",
+        "safetape",
+        "-W",
+        "error::pytest.PytestAssertRewriteWarning",
+    )
+    assert "PytestAssertRewriteWarning" not in result.stdout.str() + result.stderr.str()
+    result.assert_outcomes(passed=1)
+
+
+def test_importing_safetape_leaves_vcrpy_alone(pytester: pytest.Pytester) -> None:
+    code = (
+        "import sys, safetape, safetape.pytest_plugin; "
+        "print(sorted(m for m in sys.modules if m.startswith('vcr')))"
+    )
+    result = pytester.run(sys.executable, "-c", code)
+    assert result.stdout.lines[-1] == "[]"

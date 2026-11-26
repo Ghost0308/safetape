@@ -9,15 +9,19 @@ import re
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
+# Only modules that don't import vcrpy belong up here. pytest can load this plugin
+# before pytest-recording, and pytest-recording needs to be the one that imports
+# vcr.matchers so its asserts get rewritten.
 from ._credentials import remembered
-from ._install import install
-from ._persister import StaleCassette
 from ._redact import redact_text
 from ._settings import DEFAULT_STALE_DAYS, Settings
+
+if TYPE_CHECKING:
+    from ._persister import StaleCassette
 
 _LOCKDOWN_VALUES = {"auto": None, "on": True, "off": False}
 
@@ -73,6 +77,8 @@ def pytest_configure(config: pytest.Config) -> None:
 
 @pytest.hookimpl(optionalhook=True)
 def pytest_recording_configure(config: pytest.Config, vcr: Any) -> None:
+    from ._install import install  # noqa: PLC0415 - see the note on the imports above
+
     state = config.stash[_STATE]
     install(vcr, state.settings, on_stale=state.remember_stale)
 
