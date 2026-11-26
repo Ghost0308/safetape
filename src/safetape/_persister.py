@@ -6,6 +6,7 @@ import copy
 import os
 import stat
 import tempfile
+import time
 import warnings
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -35,6 +36,11 @@ __all__ = [
     "StaleCassette",
     "StaleCassetteWarning",
 ]
+
+# On Windows a file someone just wrote can be locked for a moment by antivirus or an
+# indexer, so replacing it gets a few tries.
+_REPLACE_ATTEMPTS = 5
+_REPLACE_BACKOFF_SECONDS = 0.05
 
 
 class StaleCassetteWarning(UserWarning):
@@ -210,10 +216,22 @@ def _atomic_write(path: Path, output: str | bytes) -> None:
             os.fsync(file.fileno())
         mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else 0o644
         temp.chmod(mode)
-        temp.replace(path)
+        _replace(temp, path)
     except BaseException:
         temp.unlink(missing_ok=True)
         raise
+
+
+def _replace(source: Path, target: Path) -> None:
+    for attempt in range(1, _REPLACE_ATTEMPTS + 1):
+        try:
+            source.replace(target)
+        except PermissionError:
+            if attempt == _REPLACE_ATTEMPTS:
+                raise
+            time.sleep(_REPLACE_BACKOFF_SECONDS * attempt)
+        else:
+            return
 
 
 def _recorded_at(response: Any) -> datetime | None:

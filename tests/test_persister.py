@@ -341,6 +341,32 @@ def test_allowed_values_are_not_hunted(tmp_path: Path, monkeypatch: pytest.Monke
     _persister().save_cassette(tmp_path / "c.json", cassette, serializer)
 
 
+def test_a_locked_file_gets_a_few_tries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = tmp_path / "c.json"
+    real_replace = Path.replace
+    calls: list[int] = []
+
+    def flaky_replace(self: Path, target: Any) -> Path:
+        calls.append(1)
+        if len(calls) < 3:
+            raise PermissionError("in use")
+        return real_replace(self, target)
+
+    monkeypatch.setattr("safetape._persister._REPLACE_BACKOFF_SECONDS", 0)
+    monkeypatch.setattr(Path, "replace", flaky_replace)
+    _persister().save_cassette(path, _cassette(), serializer)
+    assert len(calls) == 3
+    assert path.exists()
+
+    def locked(self: Path, target: Any) -> Path:
+        raise PermissionError("in use")
+
+    monkeypatch.setattr(Path, "replace", locked)
+    with pytest.raises(PermissionError):
+        _persister().save_cassette(path, _cassette(count=2), serializer)
+    assert [p.name for p in tmp_path.iterdir()] == ["c.json"]
+
+
 def test_safe_persister_fixes_vcrpy_by_itself(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[int] = []
     monkeypatch.setattr("safetape._persister.harden_vcrpy", lambda: calls.append(1))
