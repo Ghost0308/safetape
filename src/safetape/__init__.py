@@ -1,6 +1,7 @@
 """Keep API keys out of recorded LLM test cassettes."""
 
 from . import serializer
+from ._install import install
 from ._persister import (
     LockdownError,
     SafePersister,
@@ -30,6 +31,7 @@ __all__ = [
     "StaleCassetteWarning",
     "__version__",
     "default_rules",
+    "install",
     "load_rules",
     "serializer",
 ]
