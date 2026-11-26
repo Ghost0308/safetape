@@ -9,7 +9,7 @@ from safetape import REDACTED, Settings
 from safetape._presets import PRESETS, default_query_params, default_request_headers
 from safetape._scrub import redact_body_fields, scrub_interaction, strip_query_params
 
-from .fakes import anthropic_key, google_key, openai_key, refresh_token
+from .fakes import anthropic_key, chars, google_key, openai_key, refresh_token
 
 SETTINGS = Settings()
 
@@ -148,3 +148,17 @@ def test_presets_are_all_lower_case_and_included_by_default() -> None:
     assert "x-goog-api-key" in default_request_headers()
     assert "key" in default_query_params()
     assert SETTINGS.headers >= default_request_headers()
+
+
+def test_scrubbing_returns_what_it_removed() -> None:
+    token, key, refresh, access = chars(32), chars(30), refresh_token(), chars(40)
+    interaction = _interaction(
+        uri=f"https://x.example.com/v1?key={key}",
+        headers={"Authorization": [f"Bearer {token}"], "OpenAI-Organization": ["org-1234567890"]},
+        body=f"grant_type=refresh_token&refresh_token={refresh}",
+        response={"body": json.dumps({"access_token": access}).encode()},
+    )
+    interaction["request"]["headers"]["Content-Type"] = ["application/x-www-form-urlencoded"]
+    removed = scrub_interaction(interaction, SETTINGS)
+    assert {token, key, refresh, access} <= removed
+    assert "org-1234567890" not in removed

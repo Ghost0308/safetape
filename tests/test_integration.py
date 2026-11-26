@@ -13,10 +13,10 @@ import requests
 import vcr
 from vcr.errors import CannotOverwriteExistingCassetteException
 
-from safetape import LockdownError, SecretFoundError, Settings, install
+from safetape import LockdownError, SafePersister, SecretFoundError, Settings, install
 
 from .conftest import Route, Server
-from .fakes import anthropic_key, google_key, openai_key
+from .fakes import anthropic_key, chars, google_key, openai_key
 
 CHAT_ANSWER = {"id": "chatcmpl-1", "choices": [{"message": {"content": "café"}}]}
 
@@ -273,3 +273,40 @@ def test_lockdown_error_is_raised_for_recordings_that_slip_through(tmp_path: Pat
     response = {"status": {"code": 200, "message": "OK"}, "headers": {}, "body": {"string": b""}}
     with pytest.raises(LockdownError), my_vcr.use_cassette("x.json") as cassette:
         cassette.append(request, response)
+
+
+def test_playback_errors_dont_show_the_live_requests_secrets(
+    server: Server,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _chat_route(server)
+    url = f"{server.url}/v1/chat/completions"
+    with _vcr(tmp_path).use_cassette("chat.json"):
+        httpx.post(url, json={"messages": [{"content": "hello"}]})
+
+    header_key, query_key, env_key = chars(32), chars(24), chars(32)
+    monkeypatch.setenv("MISTRAL_API_KEY", env_key)
+    with (
+        pytest.raises(CannotOverwriteExistingCassetteException) as error,
+        _vcr(tmp_path).use_cassette("chat.json", record_mode="none"),
+    ):
+        httpx.post(
+            f"{url}?key={query_key}",
+            json={"messages": [{"content": f"keys {header_key} and {env_key}"}]},
+            headers={"Authorization": f"Bearer {header_key}"},
+        )
+    message = str(error.value)
+    for secret in (header_key, query_key, env_key):
+        assert secret not in message
+    assert "?key=<known-secret:" in message
+
+
+def test_playback_errors_are_masked_without_install_too(server: Server, tmp_path: Path) -> None:
+    # vcrpy is fixed for the whole process once safetape is in use.
+    SafePersister()
+    plain = vcr.VCR(cassette_library_dir=str(tmp_path), record_mode="none")
+    key = google_key()
+    with pytest.raises(CannotOverwriteExistingCassetteException) as error, plain.use_cassette("x"):
+        httpx.get(f"{server.url}/v1/models?key={key}")
+    assert key not in str(error.value)

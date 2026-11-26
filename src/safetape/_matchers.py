@@ -15,7 +15,8 @@ from urllib.parse import parse_qsl, urlsplit, urlunsplit
 from vcr.util import read_body
 
 from ._bodies import header_values, media_type, to_bytes
-from ._rules import Ruleset
+from ._credentials import from_request, remember
+from ._redact import redact_text
 from ._scrub import redact_body_fields, strip_query_params
 from ._settings import Settings
 
@@ -25,25 +26,32 @@ MAX_DIFF_LINES = 60
 
 
 def build_matchers(settings: Settings) -> dict[str, Matcher]:
-    ruleset = settings.ruleset
     params = settings.query_params
     ignore = tuple(path.split(".") for path in settings.ignore_body_fields)
+
+    def safe(message: str, live: Any) -> str:
+        # The live request hasn't been scrubbed, so its own credentials are known.
+        known = settings.known_credentials(
+            from_request(live, settings.credential_headers, params),
+        )
+        remember(known)
+        return redact_text(message, settings, known)
 
     def query(r1: Any, r2: Any) -> None:
         live, recorded = _query(r1.uri, params), _query(r2.uri, params)
         if live != recorded:
-            raise AssertionError(ruleset.redact(f"{live} != {recorded}"))
+            raise AssertionError(safe(f"{live} != {recorded}", r1))
 
     def uri(r1: Any, r2: Any) -> None:
         live, recorded = _uri(r1.uri, params), _uri(r2.uri, params)
         if live != recorded:
-            raise AssertionError(ruleset.redact(f"{live} != {recorded}"))
+            raise AssertionError(safe(f"{live} != {recorded}", r1))
 
     def body(r1: Any, r2: Any) -> None:
         live = _comparable(r1, settings.body_fields, ignore)
         recorded = _comparable(r2, settings.body_fields, ignore)
         if live != recorded:
-            raise AssertionError(body_diff(recorded, live, ruleset))
+            raise AssertionError(safe(body_diff(recorded, live), r1))
 
     return {"query": query, "uri": uri, "url": uri, "body": body}
 
@@ -131,8 +139,8 @@ def drop_path(value: Any, path: Sequence[str]) -> Any:
     return value
 
 
-def body_diff(recorded: tuple[str, str], live: tuple[str, str], ruleset: Ruleset) -> str:
-    """A unified diff of two bodies with any secrets masked."""
+def body_diff(recorded: tuple[str, str], live: tuple[str, str]) -> str:
+    """A unified diff of two bodies. Mask secrets before showing it."""
     if recorded[0] == "bytes" or live[0] == "bytes":
         return "the bodies differ (at least one is binary)"
     lines = list(
@@ -150,4 +158,4 @@ def body_diff(recorded: tuple[str, str], live: tuple[str, str], ruleset: Ruleset
     if len(lines) > MAX_DIFF_LINES:
         extra = len(lines) - MAX_DIFF_LINES
         lines = [*lines[:MAX_DIFF_LINES], f"... ({extra} more lines)"]
-    return ruleset.redact("\n".join(lines))
+    return "\n".join(lines)

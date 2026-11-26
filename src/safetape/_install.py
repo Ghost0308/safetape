@@ -6,12 +6,11 @@ import functools
 from collections.abc import Callable
 from typing import Any
 
-from vcr.cassette import CassetteContextDecorator
 from vcr.record_mode import RecordMode
 
 from . import serializer
 from ._matchers import build_matchers
-from ._persister import SafePersister, SafetapeError, StaleCassette
+from ._persister import SafePersister, StaleCassette
 from ._settings import Settings
 
 VCRPY_DEFAULT_MATCH_ON = ("method", "scheme", "host", "port", "path", "query")
@@ -32,9 +31,11 @@ def install(
       are matched on their body too unless match_on was already changed
     - compressed responses are stored decompressed, so they can be scanned
     - in lockdown nothing is recorded, whatever record_mode says
+
+    SafePersister also fixes two vcrpy behaviours for the whole process (see
+    _vcrpy_fixes), so they apply whether or not install() is used.
     """
     settings = settings or Settings()
-    _unpatch_when_save_fails()
     # pytest-recording loads extra cassettes named in the vcr marker through its own persister.
     extra_paths = tuple(getattr(vcr.persister, "extra_paths", None) or ())
     vcr.register_persister(SafePersister(settings, extra_paths=extra_paths, on_stale=on_stale))
@@ -49,41 +50,6 @@ def install(
     if settings.lockdown_active:
         _lock(vcr)
     return vcr
-
-
-_FINISH = "_CassetteContextDecorator__finish"
-
-
-def _unpatch_when_save_fails() -> None:
-    """Make vcrpy undo its HTTP patches even when saving a cassette raises.
-
-    vcrpy saves the cassette and only then removes its patches, so an error from
-    the save (like SecretFoundError) leaves them in place until the garbage
-    collector gets to them, which breaks later tests in odd ways. safetape's own
-    errors also get a fresh traceback here, so the secret they refused to write
-    doesn't show up in a traceback either.
-    """
-    original = CassetteContextDecorator.__exit__
-    if getattr(original, "_safetape", False):
-        return
-
-    @functools.wraps(original)
-    def __exit__(self: Any, *exc_info: Any) -> Any:
-        __tracebackhide__ = True
-        try:
-            return original(self, *exc_info)
-        except SafetapeError as error:
-            # The frames below this one hold the cassette before it was scrubbed, and
-            # pytest prints function arguments in tracebacks. Start the traceback here.
-            raise error.with_traceback(None)  # noqa: B904 - same error, shorter traceback
-        finally:
-            finish = getattr(self, _FINISH, None)
-            if finish is not None:
-                setattr(self, _FINISH, None)
-                next(finish, None)
-
-    __exit__._safetape = True  # type: ignore[attr-defined]
-    CassetteContextDecorator.__exit__ = __exit__
 
 
 def _lock(vcr: Any) -> None:

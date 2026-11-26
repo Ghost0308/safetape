@@ -6,14 +6,17 @@ It loads by itself once safetape is installed. Turn it off with ``-p no:safetape
 from __future__ import annotations
 
 import re
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from ._credentials import remembered
 from ._install import install
 from ._persister import StaleCassette
+from ._redact import redact_text
 from ._settings import DEFAULT_STALE_DAYS, Settings
 
 _LOCKDOWN_VALUES = {"auto": None, "on": True, "off": False}
@@ -72,6 +75,33 @@ def pytest_configure(config: pytest.Config) -> None:
 def pytest_recording_configure(config: pytest.Config, vcr: Any) -> None:
     state = config.stash[_STATE]
     install(vcr, state.settings, on_stale=state.remember_stale)
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item: pytest.Item) -> Generator[None, Any, None]:
+    """Mask secrets in a test's failure report and captured output.
+
+    pytest's long tracebacks print the arguments of every frame, and a request
+    with no recording passes through frames that hold it unscrubbed.
+    """
+    outcome = yield
+    state = item.config.stash.get(_STATE, None)
+    if state is not None:
+        _redact_report(outcome.get_result(), state.settings)
+
+
+def _redact_report(report: pytest.TestReport, settings: Settings) -> None:
+    if not report.failed and not report.sections:
+        return
+    known = settings.known_credentials(remembered())
+    if report.longrepr is not None and not isinstance(report.longrepr, tuple):
+        text = str(report.longrepr)
+        clean = redact_text(text, settings, known)
+        if clean != text:
+            report.longrepr = clean
+    report.sections = [
+        (title, redact_text(content, settings, known)) for title, content in report.sections
+    ]
 
 
 def pytest_report_header(config: pytest.Config) -> list[str]:

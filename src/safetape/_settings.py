@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
 from . import _presets
+from ._credentials import from_environment
 from ._rules import Ruleset, default_rules, load_rules
 
 DEFAULT_STALE_DAYS = 90
@@ -59,6 +60,17 @@ class Settings:
         )
 
     @cached_property
+    def credential_headers(self) -> frozenset[str]:
+        """Stripped headers whose values are worth looking for elsewhere in a cassette."""
+        check = self.ruleset.header_check
+        extra = {
+            h.lower()
+            for h in self.redact_headers
+            if check is not None and check.name_pattern.search(h.lower())
+        }
+        return _presets.CREDENTIAL_HEADERS | extra
+
+    @cached_property
     def query_params(self) -> frozenset[str]:
         return _presets.default_query_params() | {q.lower() for q in self.redact_query_params}
 
@@ -77,6 +89,15 @@ class Settings:
     @cached_property
     def lockdown_active(self) -> bool:
         return resolve_lockdown(self.lockdown, os.environ)
+
+    def known_credentials(self, *groups: Iterable[str]) -> frozenset[str]:
+        """Exact credential values to look for: the given ones plus secret-looking
+        environment variables, leaving out anything the allow list accepts.
+
+        The environment is read every time, since tests change it as they go.
+        """
+        values = from_environment().union(*groups)
+        return frozenset(v for v in values if not self.ruleset.is_allowed(v))
 
 
 def resolve_lockdown(value: bool | None, environ: Mapping[str, str]) -> bool:
