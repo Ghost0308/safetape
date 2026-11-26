@@ -72,6 +72,11 @@ python_version = "3.11"
 strict = true
 files = ["src", "tests"]
 
+[[tool.mypy.overrides]]
+# vcrpy ships without type hints.
+module = ["vcr", "vcr.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 addopts = ["-ra", "--strict-markers", "--strict-config"]
 testpaths = ["tests"]
