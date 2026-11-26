@@ -7,6 +7,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
+pytest_plugins = ["pytester"]
+
 
 @pytest.fixture(autouse=True)
 def _no_ci(monkeypatch: pytest.MonkeyPatch) -> None:
