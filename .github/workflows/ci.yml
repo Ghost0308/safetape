@@ -59,6 +59,22 @@ jobs:
       - run: uv run coverage run -m pytest
       - run: uv run coverage report
 
+  oldest:
+    # The oldest versions pyproject.toml allows, vcrpy 8.2.1 among them.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: step-security/harden-runner@aebdcf6156ab6691adf63218240e476564a1ed4c # v2.23.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: "0.13.10"
+          python-version: "3.11"
+      - run: uv run --isolated --resolution lowest-direct pytest
+
   audit:
     runs-on: ubuntu-latest
     steps:
