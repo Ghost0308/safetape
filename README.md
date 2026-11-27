@@ -68,7 +68,7 @@ safetape didn't save tests/cassettes/test_capital.json because it still has some
   interaction 1, response body: OpenAI project, service account or admin key [openai-key] sk-p... (164 chars)
 ```
 
-All of this happens whichever provider a cassette talks to. The per-provider lists are in [_presets.py](src/safetape/_presets.py) and the secret rules are in [rules.json](src/safetape/rules.json). The rules file is plain JSON with regexes that Python and JavaScript read the same way, so other tools can use it too.
+All of this happens whichever provider a cassette talks to. The per-provider lists are in [_presets.py](https://github.com/Ghost0308/safetape/blob/main/src/safetape/_presets.py) and the secret rules are in [rules.json](https://github.com/Ghost0308/safetape/blob/main/src/safetape/rules.json). The rules file is plain JSON with regexes that Python and JavaScript read the same way, so other tools can use it too.
 
 ## Readable cassettes
 
@@ -129,7 +129,7 @@ When a test fails, the error and the frames pytest prints can describe the live 
 
 ## Security
 
-See [SECURITY.md](SECURITY.md) for how to report a problem, and [docs/threat-model.md](docs/threat-model.md) for what this project tries to protect against.
+See [SECURITY.md](https://github.com/Ghost0308/safetape/blob/main/SECURITY.md) for how to report a problem, and [docs/threat-model.md](https://github.com/Ghost0308/safetape/blob/main/docs/threat-model.md) for what this project tries to protect against.
 
 ## License
 
