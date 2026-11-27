@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- README links point at GitHub, so they work on the PyPI page too
+- SECURITY.md has a direct link for private reports and says how disclosure works
+- CI also audits the GitHub workflows with zizmor
+
 ## 0.1.0
 
 The first release.
