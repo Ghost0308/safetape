@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.1
 
 - README links point at GitHub, so they work on the PyPI page too
 - SECURITY.md has a direct link for private reports and says how disclosure works
