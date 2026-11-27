@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 from typing import TYPE_CHECKING, Any
 
-__version__ = "0.0.1"
+__version__ = "0.1.0"
 
 # Names are imported the first time they're used. Importing vcrpy as soon as
 # pytest loads safetape's plugin would stop pytest-recording from having

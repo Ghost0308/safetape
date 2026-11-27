@@ -4,7 +4,13 @@ Record your LLM API calls once, replay them in tests, and stop worrying about co
 
 safetape sits on top of [vcrpy](https://github.com/kevin1024/vcrpy) and [pytest-recording](https://github.com/kiwicom/pytest-recording). It knows what OpenAI, Anthropic, Gemini and other provider traffic looks like, so it strips credentials before a cassette is written and refuses to save one that still has a secret in it.
 
-**Status: early.** Nothing is on PyPI yet. It needs Python 3.11 or newer and vcrpy 8.2.1 or newer.
+**Status: early.** This is 0.1, so expect things to change. It needs Python 3.11 or newer and vcrpy 8.2.1 or newer.
+
+```
+pip install safetape
+```
+
+It's tested with the OpenAI and Anthropic Python SDKs (sync, async and streaming), which send their requests through httpx2. vcrpy patches that as well as httpx, requests, aiohttp and the other usual clients.
 
 ## Why I'm building this
 
